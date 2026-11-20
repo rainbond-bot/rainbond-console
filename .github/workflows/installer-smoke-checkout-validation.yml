@@ -1,0 +1,76 @@
+name: Installer smoke checkout validation
+
+on:
+  push:
+    branches:
+      - chore/rain-106-checkout-validation
+
+permissions:
+  contents: read
+
+jobs:
+  checkout:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout smoke harness
+        uses: actions/checkout@v4
+
+      - name: Remove smoke harness checkout credentials
+        run: |
+          set +e
+          git -C . config --local --get-all http.https://github.com/.extraheader >/dev/null
+          status=$?
+          set -e
+          case "$status" in
+            0) git -C . config --local --unset-all http.https://github.com/.extraheader ;;
+            1) ;;
+            *) exit "$status" ;;
+          esac
+
+      - name: Checkout tested ref
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: main
+          path: under-test
+
+      - name: Remove tested ref checkout credentials
+        run: |
+          set +e
+          git -C under-test config --local --get-all http.https://github.com/.extraheader >/dev/null
+          status=$?
+          set -e
+          case "$status" in
+            0) git -C under-test config --local --unset-all http.https://github.com/.extraheader ;;
+            1) ;;
+            *) exit "$status" ;;
+          esac
+
+      - name: Checkout main UUID reference
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: main
+          path: main-reference
+
+      - name: Remove main reference checkout credentials
+        run: |
+          set +e
+          git -C main-reference config --local --get-all http.https://github.com/.extraheader >/dev/null
+          status=$?
+          set -e
+          case "$status" in
+            0) git -C main-reference config --local --unset-all http.https://github.com/.extraheader ;;
+            1) ;;
+            *) exit "$status" ;;
+          esac
+
+      - name: Verify checkout credentials are absent
+        run: |
+          for directory in . under-test main-reference; do
+            set +e
+            git -C "$directory" config --local --get-all http.https://github.com/.extraheader >/dev/null
+            status=$?
+            set -e
+            test "$status" -eq 1
+          done
